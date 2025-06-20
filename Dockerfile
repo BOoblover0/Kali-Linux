@@ -24,14 +24,15 @@ RUN mkdir -p /run/sshd && \
 RUN mkdir -p /var/www && \
     echo "<html><body><h1>Python HTTP Server Working!</h1><p>SSH access via Serveo tunnel</p></body></html>" > /var/www/index.html
 
-# Create startup script with fixes
+# Create startup script with Render compatibility
 RUN echo "#!/bin/sh" > /start && \
-    echo "# Prepare SSH known_hosts" >> /start && \
+    echo "# Prepare environment" >> /start && \
+    echo "export PORT=\${PORT:-8000}" >> /start && \
     echo "mkdir -p /root/.ssh" >> /start && \
     echo "echo '[serveo.net]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIElH2e9Yp0LkQ8+5rk5QsAtdxF+U5kKj7t7LYf21yX3J' > /root/.ssh/known_hosts" >> /start && \
     echo "" >> /start && \
-    echo "# Start Python HTTP server" >> /start && \
-    echo "cd /var/www && python3 -m http.server 8000 &" >> /start && \
+    echo "# Start Python HTTP server (bound to 0.0.0.0 for Render)" >> /start && \
+    echo "cd /var/www && python3 -m http.server \$PORT --bind 0.0.0.0 &" >> /start && \
     echo "" >> /start && \
     echo "# Start AutoSSH tunnel with logging" >> /start && \
     echo "echo 'Starting tunnel at \$(date)' >> /var/log/tunnel.log" >> /start && \
@@ -48,8 +49,13 @@ RUN echo "#!/bin/sh" > /start && \
 # Create log directory
 RUN mkdir -p /var/log
 
-# Expose ports
-EXPOSE 8000 22
+# Health check (required by Render)
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/ || exit 1
+
+# Use Render's PORT environment variable
+ENV PORT=8000
+EXPOSE $PORT 22
 
 # Start command
 CMD /start
