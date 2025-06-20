@@ -9,10 +9,6 @@ RUN apt-get update -y && \
 RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 ENV LANG en_US.utf8
 
-# Install Node.js (optional - remove if not needed)
-RUN curl -sL https://deb.nodesource.com/setup_21.x | bash - && \
-    apt-get install -y nodejs
-
 # Configure SSH
 RUN mkdir -p /run/sshd && \
     mkdir -p /root/.ssh && \
@@ -26,20 +22,31 @@ RUN mkdir -p /run/sshd && \
 
 # Create web content
 RUN mkdir -p /var/www && \
-    echo "<html><body><h1>Python HTTP Server Working!</h1><p>Access SSH via Serveo tunnel</p></body></html>" > /var/www/index.html
+    echo "<html><body><h1>Python HTTP Server Working!</h1><p>SSH access via Serveo tunnel</p></body></html>" > /var/www/index.html
 
-# Create startup script
+# Create startup script with fixes
 RUN echo "#!/bin/sh" > /start && \
-    echo "# Start Python HTTP server (local only)" >> /start && \
+    echo "# Prepare SSH known_hosts" >> /start && \
+    echo "mkdir -p /root/.ssh" >> /start && \
+    echo "echo '[serveo.net]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIElH2e9Yp0LkQ8+5rk5QsAtdxF+U5kKj7t7LYf21yX3J' > /root/.ssh/known_hosts" >> /start && \
+    echo "" >> /start && \
+    echo "# Start Python HTTP server" >> /start && \
     echo "cd /var/www && python3 -m http.server 8000 &" >> /start && \
     echo "" >> /start && \
-    echo "# Start Serveo SSH tunnel (SSH only)" >> /start && \
-    echo "autossh -M 0 -o 'ServerAliveInterval 60' -o 'ServerAliveCountMax 3' \\" >> /start && \
-    echo "    -N -R 0:localhost:22 serveo.net &" >> /start && \
+    echo "# Start AutoSSH tunnel with logging" >> /start && \
+    echo "echo 'Starting tunnel at \$(date)' >> /var/log/tunnel.log" >> /start && \
+    echo "autossh -M 0 \\" >> /start && \
+    echo "    -o 'StrictHostKeyChecking=accept-new' \\" >> /start && \
+    echo "    -o 'ServerAliveInterval=60' \\" >> /start && \
+    echo "    -o 'ServerAliveCountMax=3' \\" >> /start && \
+    echo "    -N -R 0:localhost:22 serveo.net 2>&1 | tee -a /var/log/tunnel.log &" >> /start && \
     echo "" >> /start && \
     echo "# Start SSH server" >> /start && \
     echo "/usr/sbin/sshd -D" >> /start && \
     chmod 755 /start
+
+# Create log directory
+RUN mkdir -p /var/log
 
 # Expose ports
 EXPOSE 8000 22
