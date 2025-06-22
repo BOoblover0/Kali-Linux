@@ -27,11 +27,11 @@ RUN mkdir /run/sshd && \
 
 # Create startup script
 RUN echo "#!/bin/sh" > /start && \
-    echo "# Start Serveo SSH tunnel for port 22" >> /start && \
+    echo "# Start localhost.run SSH tunnel" >> /start && \
     echo "while true; do" >> /start && \
     echo "  ssh -o StrictHostKeyChecking=no \\" >> /start && \
     echo "      -o ServerAliveInterval=60 \\" >> /start && \
-    echo "      -R 0:localhost:22 serveo.net" >> /start && \
+    echo "      ssh.localhost.run" >> /start && \
     echo "  sleep 10" >> /start && \
     echo "done &" >> /start && \
     echo "" >> /start && \
@@ -39,7 +39,7 @@ RUN echo "#!/bin/sh" > /start && \
     echo "/usr/sbin/sshd -D" >> /start && \
     chmod 755 /start
 
-# Expose ports
+# Expose ports (these are just declarations, actual forwarding happens via SSH)
 EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
 
 # Start command
