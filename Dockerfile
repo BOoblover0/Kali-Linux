@@ -1,14 +1,16 @@
 FROM debian:latest
 
-# Install base dependencies including Python 3.10
+# Install base dependencies and Python 3.10
 RUN apt-get update -y && \
     apt-get upgrade -y && \
-    apt-get install -y sudo curl ffmpeg git locales nano python3.10 python3-pip screen ssh unzip wget
+    apt-get install -y sudo curl ffmpeg git locales nano python3 python3-pip screen ssh unzip wget && \
+    apt-get install -y python3.10 python3.10-distutils && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
 
 # Set up Python 3.10 as default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
-    update-alternatives --set python3 /usr/bin/python3.10 && \
-    ln -sf /usr/bin/python3.10 /usr/bin/python3
+RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.10 /usr/bin/python && \
+    python3 -m pip install --upgrade pip
 
 # Set up locale
 RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
