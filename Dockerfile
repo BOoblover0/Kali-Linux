@@ -14,7 +14,11 @@ RUN sudo apt-get install -y nodejs
 # Set environment
 ENV LANG en_US.utf8
 
-# Configure SSH first
+# Install bore for SSH tunneling
+RUN wget -O bore.tar.gz https://github.com/ekzhang/bore/releases/download/v0.5.0/bore-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+RUN tar -xzf bore.tar.gz && mv bore /usr/local/bin/ && rm bore.tar.gz
+
+# Configure SSH
 RUN mkdir -p /run/sshd
 RUN echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config 
 RUN echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -24,13 +28,24 @@ RUN echo root:choco | chpasswd
 # Generate SSH host keys
 RUN ssh-keygen -A
 
-# Create start script with serveo tunnel
+# Create start script
 RUN echo '#!/bin/bash' > /start
+RUN echo 'echo "=== Ubuntu Container with Bore.pub SSH Tunnel ==="' >> /start
 RUN echo 'echo "Starting SSH daemon..."' >> /start
 RUN echo '/usr/sbin/sshd -D &' >> /start
-RUN echo 'sleep 5' >> /start
-RUN echo 'echo "Starting Serveo tunnel..."' >> /start
-RUN echo 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -R 0:localhost:22 serveo.net' >> /start
+RUN echo 'sleep 3' >> /start
+RUN echo 'echo ""' >> /start
+RUN echo 'echo "🚀 Starting bore.pub tunnel..."' >> /start
+RUN echo 'echo "📡 Connecting to bore.pub..."' >> /start
+RUN echo 'echo ""' >> /start
+RUN echo 'echo "⚡ Your SSH connection details:"' >> /start
+RUN echo 'echo "   Host: bore.pub"' >> /start
+RUN echo 'echo "   Username: root"' >> /start
+RUN echo 'echo "   Password: kaal"' >> /start
+RUN echo 'echo "   Port: (see below)"' >> /start
+RUN echo 'echo ""' >> /start
+RUN echo 'echo "🔗 Tunnel starting..."' >> /start
+RUN echo 'bore local 22 --to bore.pub' >> /start
 
 # Make start script executable
 RUN chmod +x /start
