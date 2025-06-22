@@ -1,53 +1,42 @@
 FROM ubuntu:22.04
 
-# 1. Install essential packages with clean cleanup
-RUN apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      curl wget openssh-server sudo \
-      python3.10 python3-pip git nano && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Update system and install essential packages
+RUN apt-get -y update && apt-get -y upgrade && apt-get install -y sudo
+RUN sudo apt-get install -y curl ffmpeg git locales nano python3-pip screen ssh unzip wget  
 
-# 2. Direct zrok binary installation (no installer issues)
-RUN mkdir -p /usr/local/zrok/bin && \
-    wget https://github.com/openziti/zrok/releases/latest/download/zrok_linux_amd64 -O /usr/local/zrok/bin/zrok && \
-    chmod +x /usr/local/zrok/bin/zrok && \
-    ln -s /usr/local/zrok/bin/zrok /usr/local/bin/zrok
+# Set up locale
+RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
-# 3. Configure environment
-ENV PATH="/usr/local/zrok/bin:${PATH}" \
-    ZROK_TOKEN="FVfex9GLPrBU"
+# Install Node.js
+RUN curl -sL https://deb.nodesource.com/setup_21.x | bash -
+RUN sudo apt-get install -y nodejs
 
-# 4. SSH setup with secure defaults
-RUN mkdir /run/sshd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
-    echo 'root:choco' | chpasswd && \
-    ssh-keygen -A -t ed25519 && \
-    ssh-keygen -A -t rsa
+# Set environment
+ENV LANG en_US.utf8
 
-# 5. Startup script with health checks
-RUN echo '#!/bin/bash\n\
-service ssh start\n\
-\n\
-# Start zrok tunnel with retries\n\
-for i in {1..5}; do\n\
-  if zrok share public localhost:22 --name myssh; then\n\
-    echo "zrok tunnel established at: https://myssh.zrok.io"\n\
-    break\n\
-  else\n\
-    echo "zrok attempt $i failed, retrying..."\n\
-    sleep 5\n\
-  fi\n\
-done &\n\
-\n\
-# Keep container alive\n\
-tail -f /dev/null' > /start && \
-    chmod +x /start
+# Configure SSH first
+RUN mkdir -p /run/sshd
+RUN echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config 
+RUN echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+RUN echo 'Port 22' >> /etc/ssh/sshd_config
+RUN echo root:choco | chpasswd
 
-# 6. Health check (tests SSH internally)
-HEALTHCHECK --interval=30s --timeout=5s \
-  CMD netstat -tuln | grep -q ':22 ' || exit 1
+# Generate SSH host keys
+RUN ssh-keygen -A
 
-EXPOSE 22
+# Create start script with serveo tunnel
+RUN echo '#!/bin/bash' > /start
+RUN echo 'echo "Starting SSH daemon..."' >> /start
+RUN echo '/usr/sbin/sshd -D &' >> /start
+RUN echo 'sleep 5' >> /start
+RUN echo 'echo "Starting Serveo tunnel..."' >> /start
+RUN echo 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -R 0:localhost:22 serveo.net' >> /start
+
+# Make start script executable
+RUN chmod +x /start
+
+# Expose ports
+EXPOSE 22 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
+
+# Start container
 CMD ["/start"]
