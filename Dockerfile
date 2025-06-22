@@ -1,16 +1,14 @@
-FROM debian:latest
+FROM ubuntu:22.04
 
-# Install base dependencies and Python 3.10
+# Install base dependencies including Python 3.10
 RUN apt-get update -y && \
     apt-get upgrade -y && \
-    apt-get install -y sudo curl ffmpeg git locales nano python3 python3-pip screen ssh unzip wget && \
-    apt-get install -y python3.10 python3.10-distutils && \
-    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+    apt-get install -y sudo curl ffmpeg git locales nano python3.10 python3-pip screen ssh unzip wget
 
 # Set up Python 3.10 as default
-RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
-    ln -sf /usr/bin/python3.10 /usr/bin/python && \
-    python3 -m pip install --upgrade pip
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
+    update-alternatives --set python3 /usr/bin/python3.10 && \
+    ln -sf /usr/bin/python3.10 /usr/bin/python3
 
 # Set up locale
 RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
@@ -27,15 +25,13 @@ RUN mkdir /run/sshd && \
     echo root:choco | chpasswd && \
     ssh-keygen -A
 
-# Create startup script for localhost.run
+# Create startup script
 RUN echo "#!/bin/sh" > /start && \
-    echo "# Start localhost.run tunnel for SSH (port 22)" >> /start && \
+    echo "# Start Serveo SSH tunnel for port 22" >> /start && \
     echo "while true; do" >> /start && \
     echo "  ssh -o StrictHostKeyChecking=no \\" >> /start && \
     echo "      -o ServerAliveInterval=60 \\" >> /start && \
-    echo "      -R 80:localhost:80 \\" >> /start && \
-    echo "      -R 22:localhost:22 \\" >> /start && \
-    echo "      ssh.localhost.run" >> /start && \
+    echo "      -R 0:localhost:22 serveo.net" >> /start && \
     echo "  sleep 10" >> /start && \
     echo "done &" >> /start && \
     echo "" >> /start && \
@@ -44,7 +40,7 @@ RUN echo "#!/bin/sh" > /start && \
     chmod 755 /start
 
 # Expose ports
-EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306 22
+EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
 
 # Start command
 CMD /start
