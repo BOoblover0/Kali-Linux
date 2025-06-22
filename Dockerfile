@@ -3,7 +3,7 @@ FROM debian:latest
 # Install base dependencies including Python 3.10
 RUN apt-get update -y && \
     apt-get upgrade -y && \
-    apt-get install -y sudo curl ffmpeg git locales nano python3.10 python3-pip screen ssh unzip wget
+    apt-get install -y sudo curl ffmpeg git locales nano python3.10 python3-pip openssh-client screen ssh unzip wget autossh
 
 # Set up Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
@@ -18,29 +18,38 @@ ENV LANG en_US.utf8
 RUN curl -sL https://deb.nodesource.com/setup_21.x | bash - && \
     apt-get install -y nodejs
 
-# Configure SSH
+# Configure SSH server
 RUN mkdir /run/sshd && \
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    echo 'ClientAliveInterval 60' >> /etc/ssh/sshd_config && \
     echo root:choco | chpasswd && \
     ssh-keygen -A
 
+# Generate SSH key for Serveo (if needed)
+RUN mkdir -p /root/.ssh && \
+    ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" && \
+    chmod 600 /root/.ssh/id_ed25519
+
 # Create startup script
-RUN echo "#!/bin/sh" > /start && \
-    echo "# Start Serveo SSH tunnel for port 22" >> /start && \
-    echo "while true; do" >> /start && \
-    echo "  ssh -o StrictHostKeyChecking=no \\" >> /start && \
-    echo "      -o ServerAliveInterval=60 \\" >> /start && \
-    echo "      -R 0:localhost:22 serveo.net" >> /start && \
-    echo "  sleep 10" >> /start && \
-    echo "done &" >> /start && \
+RUN echo "#!/bin/bash" > /start && \
+    echo "# Wait for network" >> /start && \
+    echo "while ! curl -s --connect-timeout 3 serveo.net >/dev/null; do" >> /start && \
+    echo "  echo 'Waiting for network connectivity...'" >> /start && \
+    echo "  sleep 5" >> /start && \
+    echo "done" >> /start && \
+    echo "" >> /start && \
+    echo "# Start Serveo tunnel using autossh for stability" >> /start && \
+    echo "autossh -M 0 -o 'ServerAliveInterval 60' -o 'ServerAliveCountMax 3' \\" >> /start && \
+    echo "        -o 'StrictHostKeyChecking=no' -N \\" >> /start && \
+    echo "        -R 80:localhost:80 -R 22:localhost:22 serveo.net &" >> /start && \
     echo "" >> /start && \
     echo "# Start SSH server" >> /start && \
     echo "/usr/sbin/sshd -D" >> /start && \
     chmod 755 /start
 
 # Expose ports
-EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
+EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306 22
 
 # Start command
-CMD /start
+CMD ["/bin/bash", "/start"]
